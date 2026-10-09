@@ -1,0 +1,471 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Ciclos cortos en 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Outfit:wght@400;500;600&display=swap">
+<style>
+/* Layout: a slide-like screen. Title like the deck's, a 3D stage with deck-style pills tracking the objects,
+   live readouts top-right and a navy control panel bottom-left; source line at the foot.
+   Single look on purpose: it copies the deck (sage page, navy panels, green pills, black titles). */
+:root{
+  color-scheme:light;
+  --page:#D1D4C9; --ink:#141414; --navy:#29435C; --navy-2:#223A51; --green:#556E53; --green-lt:#9CC197;
+  --cream:#EEF0E8; --muted:#AEBBC7; --slate:#7D93A8; --soft:#4A5A52;
+  --f-head:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Outfit","Avenir Next","Segoe UI",system-ui,sans-serif;
+}
+html,body{height:100%}
+body{box-sizing:border-box;margin:0;background:var(--page);color:var(--ink);font-family:var(--f-body);
+  display:grid;grid-template-rows:auto minmax(420px,1fr) auto;gap:8px;padding-block:14px;padding-inline:16px;min-height:100%}
+*,*::before,*::after{box-sizing:border-box}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 20px}
+.eyebrow{font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--green)}
+h1{font-family:var(--f-head);font-weight:600;letter-spacing:-.03em;font-size:clamp(26px,3.6vw,46px);line-height:1;margin:4px 0 0;text-wrap:balance}
+.tools{display:flex;gap:6px}
+.btn{font:500 13px var(--f-body);color:var(--cream);background:var(--green);border:0;border-radius:999px;padding:8px 14px;cursor:pointer}
+.btn[aria-pressed="false"]{background:var(--soft)}
+.btn:focus-visible,input:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+
+.stage{position:relative;min-height:0;border-radius:22px;overflow:hidden}
+.stage:fullscreen{background:var(--page);border-radius:0}
+#c{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#c:active{cursor:grabbing}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.pill{position:absolute;left:0;top:0;white-space:nowrap;font:600 clamp(12px,1.25vw,16px)/1.2 var(--f-body);color:var(--cream);
+  background:var(--green);border-radius:999px;padding:8px 16px}
+.pill.navy{background:var(--navy)}
+.pill small{display:block;font-weight:500;opacity:.85;font-size:.88em}
+.pill.two{border-radius:20px}
+.pill::after{content:"";position:absolute;left:50%;top:100%;width:1.5px;height:var(--lead,22px);background:var(--navy)}
+.pill::before{content:"";position:absolute;left:calc(50% - 4px);top:calc(100% + var(--lead,22px) - 4px);width:8px;height:8px;border-radius:50%;background:var(--navy)}
+.nolabels .pill{display:none}
+.pill.nolead::after,.pill.nolead::before{display:none}
+
+.readout{position:absolute;top:12px;right:12px;display:grid;grid-template-columns:auto auto;gap:8px}
+.kpi{background:var(--navy);color:var(--cream);border-radius:18px;padding:10px 16px;min-width:9.5em}
+.kpi .v{display:block;font-family:var(--f-head);font-weight:700;font-size:clamp(26px,3vw,40px);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi .u{display:block;margin-top:3px;font-size:13px;color:var(--muted)}
+.kpi.hot .v{color:var(--green-lt)}
+.state{grid-column:1 / -1;justify-self:end;display:inline-flex;align-items:center;gap:8px;font:600 13px var(--f-body);color:var(--cream);background:var(--navy-2);border-radius:999px;padding:6px 12px}
+.state i{width:10px;height:10px;border-radius:50%;background:var(--green-lt)}
+.state.idle i{background:var(--slate)}
+
+.panel{position:absolute;left:12px;bottom:12px;width:min(340px,calc(100% - 24px));background:var(--navy);color:var(--cream);border-radius:20px;padding:14px 16px;display:grid;gap:10px}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{font:500 13px var(--f-body);color:var(--cream);background:var(--green);border:0;border-radius:999px;padding:7px 12px;cursor:pointer}
+.presets button[aria-pressed="true"]{background:var(--cream);color:var(--navy)}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:14px;align-items:baseline}
+.row output{font-weight:600;font-variant-numeric:tabular-nums}
+.row input{grid-column:1 / -1;width:100%;accent-color:var(--green-lt);margin:0}
+.fallback{position:absolute;inset:0;display:grid;place-content:center;padding:24px;text-align:center;font-size:15px;color:var(--soft)}
+footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 18px;font-size:12px;color:var(--soft);line-height:1.4}
+
+@media (max-width:760px){
+  .readout{grid-template-columns:1fr 1fr;left:12px}
+  .kpi{min-width:0}
+  .panel{padding:10px 12px;gap:8px}
+  .pill{padding:5px 10px}
+}
+</style>
+
+<header>
+  <div>
+    <div class="eyebrow">Caso de estudio · El problema</div>
+    <h1>Ciclos cortos de carga y vacío</h1>
+  </div>
+  <div class="tools">
+    <button class="btn" id="t-labels" aria-pressed="true">Etiquetas</button>
+    <button class="btn" id="t-full">Pantalla completa</button>
+  </div>
+</header>
+
+<main class="stage" id="stage">
+  <canvas id="c" aria-label="Modelo 3D: compresor, depósito y demanda de la planta"></canvas>
+  <div id="labels"></div>
+  <div class="readout" aria-live="polite">
+    <div class="kpi hot"><span class="v" id="k-n">—</span><span class="u">ciclos por hora</span></div>
+    <div class="kpi"><span class="v" id="k-idle">—</span><span class="u">del tiempo en vacío</span></div>
+    <div class="state" id="state"><i></i><span id="state-t">Carga</span></div>
+  </div>
+  <div class="panel">
+    <div class="presets" role="group" aria-label="Escenarios">
+      <button type="button" id="p-antes" aria-pressed="true">Antes</button>
+      <button type="button" id="p-tanque" aria-pressed="false">Depósito 4× mayor</button>
+      <button type="button" id="p-medida" aria-pressed="false">Compresor a la medida</button>
+    </div>
+    <label class="row" for="vc">Compresor (V̇c) <output id="vc-o"></output><input id="vc" type="range" min="4" max="20" step="0.5"></label>
+    <label class="row" for="vs">Depósito (Vs) <output id="vs-o"></output><input id="vs" type="range" min="0.5" max="10" step="0.5"></label>
+    <label class="row" for="dp">Banda de presión (ΔP) <output id="dp-o"></output><input id="dp" type="range" min="0.3" max="1.5" step="0.1"></label>
+  </div>
+</main>
+
+<footer>
+  <span>Simulación ilustrativa (acelerada ×12) con la ecuación del informe y una demanda fija de 3,5 m³/min; no son mediciones de la planta. Ambientación ilustrativa de una planta de equipo naval (hélices y timones para astilleros); no reproduce la planta real. Fuente: elaboración propia con base en Schmidt y Kissock (2005) y Uyan (2023).</span>
+  <span>Arrastre para girar · rueda para acercar</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/RoundedBoxGeometry.js"></script>
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const stage = $("stage"), canvas = $("c"), labelsEl = $("labels");
+if(!window.THREE || !THREE.OrbitControls || !THREE.RoundedBoxGeometry){ fail("No se pudo cargar el motor 3D. Revisen la conexión y recarguen la página."); return; }
+function fail(msg){ const d = document.createElement("div"); d.className = "fallback"; d.textContent = msg; stage.appendChild(d); }
+
+/* ---------- physics (same equation as the report) ---------- */
+const DEMAND = 3.5, PA = 1.013, PLOW = 6.5, SPEED = 12;
+const PRESETS = { antes:{vc:10, vs:1.5, dp:1.0}, tanque:{vc:10, vs:6, dp:1.0}, medida:{vc:4.5, vs:1.5, dp:1.0} };
+const S = Object.assign({}, PRESETS.antes);
+function cyc(){ const qc = S.vc/60, qp = DEMAND/60, tL = S.vs*S.dp/(PA*(qc-qp)), tI = S.vs*S.dp/(PA*qp); return {tL, tI, n:3600/(tL+tI), idle:tI/(tL+tI), fc:DEMAND/S.vc}; }
+const sim = {p:PLOW+.2, load:true, t:0, hist:[]};
+const fmt = (x,d) => x.toLocaleString("es-ES",{minimumFractionDigits:d, maximumFractionDigits:d});
+
+/* ---------- renderer ---------- */
+let renderer;
+try{ renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true}); }
+catch(e){ fail("Este navegador no pudo iniciar WebGL. Prueben con Chrome, Edge o Firefox actualizados."); return; }
+renderer.setPixelRatio(Math.min(devicePixelRatio||1, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene();
+const C = { navy:"#29435C", navyDk:"#1F3447", green:"#556E53", greenDk:"#465C45", greenLt:"#9CC197", cream:"#EEF0E8",
+            slate:"#7D93A8", slateDk:"#62788D", steel:"#B9C2C9", table:"#C8B69B" };
+const col = h => new THREE.Color(h).convertSRGBToLinear();
+const mat = (h,o) => new THREE.MeshStandardMaterial(Object.assign({color:col(h), roughness:.62, metalness:.08}, o||{}));
+const V = (x,y,z) => new THREE.Vector3(x,y,z);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xbfc5b8, 1.05));
+const key = new THREE.DirectionalLight(0xffffff, 1.35); key.position.set(-6,14,9); key.castShadow = true;
+key.shadow.mapSize.set(2048,2048); Object.assign(key.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:50}); key.shadow.bias = -.0004;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xffffff,.35); rim.position.set(8,6,-6); scene.add(rim);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({opacity:.16}));
+ground.rotation.x = -Math.PI/2; ground.position.y = -.45; ground.receiveShadow = true; scene.add(ground);
+
+function add(m, parent){ m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; }
+function rbox(w,h,d,r,m,pos,parent){ const me = add(new THREE.Mesh(new THREE.RoundedBoxGeometry(w,h,d,4,r), m), parent); me.position.copy(pos); return me; }
+function cyl(r,h,m,pos,parent,seg){ const me = add(new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg||40), m), parent); me.position.copy(pos); return me; }
+function seg(a,b,r,m,parent){ const d = new THREE.Vector3().subVectors(b,a), len = d.length();
+  const me = add(new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,24), m), parent); me.position.copy(a).addScaledVector(d,.5); me.quaternion.setFromUnitVectors(V(0,1,0), d.normalize()); return me; }
+function pipe(pts, r, m, parent){ for(let i=0;i<pts.length-1;i++) seg(pts[i],pts[i+1],r,m,parent);
+  for(let i=1;i<pts.length-1;i++){ const s = add(new THREE.Mesh(new THREE.SphereGeometry(r*1.15,24,16), m), parent); s.position.copy(pts[i]); } }
+function canvasTex(w,h){ const c = document.createElement("canvas"); c.width = w; c.height = h; const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return {c, g:c.getContext("2d"), t}; }
+/* ---------- naval-plant context: quay slab, harbour water, moored ship, propeller workshop, rudder ---------- */
+const CX = { slab:"#BFC4B8", slabEdge:"#AEB4A6", line:"#EEF0E8", water:"#8FA7B6", bronze:"#B8894F", bronzeDk:"#8E6638", rudder:"#C9C2B3", hull:"#29435C", deck:"#EEF0E8", spark:"#F2A541" };
+function slab(x0,x1,z0,z1){
+  const g = new THREE.Group(); scene.add(g);
+  const w = x1-x0, d = z1-z0;
+  const s = rbox(w,.26,d,.06,mat(CX.slab,{roughness:.95}),V((x0+x1)/2,-.13,(z0+z1)/2),g); s.castShadow = false;
+  const lm = mat(CX.line,{roughness:.9});
+  for(const z of [z1-.22]){ const l = rbox(w-.5,.012,.05,.005,lm,V((x0+x1)/2,.006,z),g); l.castShadow = false; }
+  /* quay edge bollards */
+  for(let z = z0+.5; z < z1-.3; z += 1.6){ cyl(.09,.22,mat(CX.hull),V(x1-.2,.11,z),g,20); cyl(.13,.05,mat(CX.hull),V(x1-.2,.24,z),g,20); }
+  return g;
+}
+function harbour(x0,x1,z0,z1){
+  const w = new THREE.Mesh(new THREE.PlaneGeometry(x1-x0, z1-z0), mat(CX.water,{roughness:.25, metalness:.1, transparent:true, opacity:.8}));
+  w.rotation.x = -Math.PI/2; w.position.set((x0+x1)/2,-.3,(z0+z1)/2); w.receiveShadow = true; scene.add(w);
+}
+function ship(pos, L, rotY){
+  const g = new THREE.Group(); g.position.copy(pos); g.rotation.y = rotY || 0; scene.add(g);
+  const H = L*.13, B = L*.17;
+  const s = new THREE.Shape();
+  s.moveTo(-L/2, H*.15); s.lineTo(L/2-L*.12, H*.0); s.quadraticCurveTo(L/2+L*.02, H*.3, L/2+L*.04, H*1.15);
+  s.lineTo(-L/2-L*.02, H*1.1); s.lineTo(-L/2, H*.15);
+  const hull = add(new THREE.Mesh(new THREE.ExtrudeGeometry(s,{depth:B, bevelEnabled:true, bevelSize:.05, bevelThickness:.05, bevelSegments:2}), mat(CX.hull,{roughness:.55})), g);
+  hull.position.set(0,-.35,-B/2);
+  rbox(L*.98,.06,B*.96,.02,mat(C.greenLt),V(0,-.35+H*.42,0),g);
+  rbox(L*1.0,.06,B*1.0,.02,mat(CX.deck),V(0,-.35+H*1.12,0),g);
+  rbox(L*.2,H*.75,B*.8,.05,mat(CX.deck),V(-L*.32,-.35+H*1.5,0),g);
+  rbox(L*.14,H*.35,B*.74,.04,mat(CX.deck),V(-L*.32,-.35+H*2.05,0),g);
+  rbox(L*.13,.05,B*.86,.02,mat(CX.hull),V(-L*.32,-.35+H*2.25,0),g);
+  cyl(H*.18,H*.7,mat(C.green),V(-L*.45,-.35+H*1.75,0),g,24);
+  /* deck cargo: two crates and a crane post */
+  rbox(L*.12,H*.4,B*.5,.03,mat(C.slate),V(L*.05,-.35+H*1.33,0),g);
+  rbox(L*.12,H*.4,B*.5,.03,mat(C.greenLt),V(L*.2,-.35+H*1.33,0),g);
+  cyl(.05,H*1.2,mat(C.navyDk||CX.hull),V(L*.34,-.35+H*1.7,0),g,12);
+  return g;
+}
+function rudder(pos){
+  const g = new THREE.Group(); g.position.copy(pos); scene.add(g);
+  rbox(1.0,.12,.6,.03,mat(C.table||"#C8B69B",{roughness:.85}),V(0,.06,0),g);
+  rbox(.78,1.55,.2,.09,mat(CX.rudder,{roughness:.5, metalness:.25}),V(0,.12+.8,0),g);
+  cyl(.06,.5,mat(C.steel||"#B9C2C9",{metalness:.7, roughness:.25}),V(-.12,.12+1.55+.2,0),g,16);
+  return g;
+}
+/* a cast propeller on a cradle; returns the grinder contact point and the hose inlet */
+function propellerStation(pos, R){
+  const g = new THREE.Group(); g.position.copy(pos); scene.add(g);
+  const cy = R + .32, nav = mat(C.navy);
+  for(const dz of [-.22,.22]){
+    seg(V(-.42,0,dz), V(0,cy-.05,dz), .045, nav, g); seg(V(.42,0,dz), V(0,cy-.05,dz), .045, nav, g);
+  }
+  seg(V(0,cy,-.42), V(0,cy,.42), .045, mat(C.steel||"#B9C2C9",{metalness:.7, roughness:.25}), g);
+  const prop = new THREE.Group(); prop.position.set(0,cy,0); g.add(prop);
+  const br = mat(CX.bronze,{metalness:.65, roughness:.32});
+  const hub = add(new THREE.Mesh(new THREE.CylinderGeometry(R*.17,R*.2,R*.36,32), br), prop); hub.rotation.x = Math.PI/2;
+  const cap = add(new THREE.Mesh(new THREE.SphereGeometry(R*.17,24,16,0,Math.PI*2,0,Math.PI/2), br), prop); cap.rotation.x = Math.PI/2; cap.position.z = R*.18;
+  for(let i=0;i<4;i++){
+    const pivot = new THREE.Group(); pivot.rotation.z = i*Math.PI/2 + .35; prop.add(pivot);
+    const blade = add(new THREE.Mesh(new THREE.SphereGeometry(1,40,18), br), pivot);
+    blade.scale.set(R*.46, R*.24, .035); blade.position.set(R*.56,0,0); blade.rotation.x = .55;
+  }
+  /* pneumatic grinder working on the lower-right blade */
+  const a = -Math.PI/4 + .35, tip = V(Math.cos(a)*R*.86, cy + Math.sin(a)*R*.86, .18);
+  const tool = new THREE.Group(); tool.position.copy(tip).add(V(.12,-.05,.16)); g.add(tool);
+  rbox(.34,.11,.11,.03,mat(C.slate,{metalness:.3}),V(.15,0,0),tool);
+  cyl(.075,.025,mat(C.navyDk||CX.hull),V(-.04,0,0),tool,24).rotation.z = Math.PI/2;
+  tool.rotation.z = .5;
+  return {g, contact:tip.clone().add(pos), hoseEnd:tool.position.clone().add(pos).add(V(.3,.08,0))};
+}
+/* sparks where the grinder touches the bronze */
+function sparks(n){
+  const m = new THREE.InstancedMesh(new THREE.SphereGeometry(.018,6,5), new THREE.MeshBasicMaterial({color:col(CX.spark)}), n);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; scene.add(m);
+  const it = []; for(let i=0;i<n;i++) it.push({life:0, max:1, p:V(0,0,0), v:V(0,0,0)});
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Sc = new THREE.Vector3();
+  return function step(dt, origin, on){
+    for(let i=0;i<n;i++){
+      const s = it[i];
+      if(s.life <= 0){ s.max = s.life = .25 + Math.random()*.35; s.p.copy(origin); s.v.set(.6+Math.random()*1.4, Math.random()*1.6-.2, Math.random()*1.2-.2); }
+      s.life -= dt; s.v.y -= 6*dt; s.p.addScaledVector(s.v, dt);
+      const k = on ? Math.max(0, s.life/s.max) : 0; Sc.setScalar(k); M.compose(s.p, Q, Sc); m.setMatrixAt(i, M);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  };
+}
+
+
+/* ---------- compressor (scales about its right face so the outlet pipe stays put) ---------- */
+const RX = -.85;
+const comp = (function(){
+  const g = new THREE.Group(); scene.add(g);
+  const w=3.3, h=2.4, d=2.1, base = mat(C.slateDk);
+  const body = new THREE.Group(); g.add(body);
+  rbox(w+.12,.18,d+.12,.05,base,V(0,.09,0),g);
+  rbox(w,h,d,.1,mat(C.slate),V(0,.18+h/2,0),body);
+  for(let i=0;i<7;i++) rbox(w*.42,.045,.03,.015,base,V(w*.18,.42+i*(h-.55)/7,d/2+.01),body);
+  rbox(w*.3,h*.24,.07,.03,mat(C.navyDk),V(-w*.27,.18+h*.74,d/2+.02),body);
+  const scr = canvasTex(256,128);
+  const scrMesh = new THREE.Mesh(new THREE.PlaneGeometry(w*.25,w*.125), new THREE.MeshBasicMaterial({map:scr.t}));
+  scrMesh.position.set(-w*.27,.18+h*.74,d/2+.06); body.add(scrMesh);
+  const fan = new THREE.Group(); fan.position.set(w/2+.012,.18+h*.5,0); body.add(fan);
+  const ring = add(new THREE.Mesh(new THREE.TorusGeometry(Math.min(h,d)*.3,.045,12,48), base), fan); ring.rotation.y = Math.PI/2;
+  const blades = new THREE.Group(); fan.add(blades);
+  for(let i=0;i<4;i++){ const b = rbox(.02,Math.min(h,d)*.5,.09,.01,base,V(0,0,0),blades); b.rotation.x = i*Math.PI/4; }
+  rbox(w*.3,.08,d*.5,.03,base,V(w*.18,.18+h+.04,0),body);
+  return {g, body, blades, scr, w, h, d, s:1};
+})();
+function drawScreen(){
+  const {g, c} = comp.scr; g.clearRect(0,0,c.width,c.height);
+  g.fillStyle = "#13202B"; g.fillRect(0,0,c.width,c.height);
+  g.fillStyle = sim.load ? C.greenLt : C.slate; g.font = "600 46px Outfit, Arial, sans-serif"; g.textBaseline = "middle";
+  g.fillText(sim.load ? "CARGA" : "VACÍO", 18, 44);
+  g.fillStyle = "#7FD3FF"; g.font = "500 34px Outfit, Arial, sans-serif"; g.fillText(fmt(sim.p,2) + " bar", 18, 96);
+  comp.scr.t.needsUpdate = true;
+}
+
+/* ---------- tank (scales about its base) with a live gauge ---------- */
+const TX = 1.25, TZ = .15;
+const tank = (function(){
+  const g = new THREE.Group(); g.position.set(TX,0,TZ); scene.add(g);
+  const r = .36, hc = .95, y0 = .38, m = mat(C.cream,{roughness:.45, metalness:.15});
+  cyl(r,hc,m,V(0,y0+hc/2,0),g);
+  const top = add(new THREE.Mesh(new THREE.SphereGeometry(r,40,20,0,Math.PI*2,0,Math.PI/2), m), g); top.position.set(0,y0+hc,0);
+  const bot = add(new THREE.Mesh(new THREE.SphereGeometry(r,40,20,0,Math.PI*2,Math.PI/2,Math.PI/2), m), g); bot.position.set(0,y0,0);
+  for(let i=0;i<3;i++){ const a = i*2.094+.6; cyl(.035,y0,mat(C.navy),V(Math.cos(a)*r*.6,y0/2,Math.sin(a)*r*.6),g,12); }
+  const gy = y0+hc*.7;
+  const rim = add(new THREE.Mesh(new THREE.CylinderGeometry(r*.34,r*.34,.04,32), mat(C.navy)), g); rim.rotation.x = Math.PI/2; rim.position.set(0,gy,r+.01);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(r*.28,32), new THREE.MeshBasicMaterial({color:col(C.cream)})); face.position.set(0,gy,r+.034); g.add(face);
+  const needle = new THREE.Mesh(new THREE.PlaneGeometry(.014,r*.24), new THREE.MeshBasicMaterial({color:col("#C0392B")}));
+  needle.geometry.translate(0,r*.11,0); needle.position.set(0,gy,r+.04); g.add(needle);
+  return {g, needle, r, hc, y0, s:1};
+})();
+
+/* ---------- the naval plant: quay, harbour, ship, propeller workshop ---------- */
+slab(-6.1, 5.3, -2.3, 2.1);
+harbour(5.32, 18, -10, 10);
+const SHIP_L = 6.2;
+const shipG = ship(V(7.45, 0, -.3), SHIP_L, Math.PI/2);
+const WS = V(3.75, 0, .2);
+const ps = propellerStation(WS, .78);
+rudder(V(4.55, 0, -1.35));
+const stepSparks = sparks(46);
+
+/* ---------- floating pressure display (live trace) ---------- */
+const panel = new THREE.Group(); panel.position.set(-.35,3.95,-.7); scene.add(panel);
+rbox(5.0,1.6,.12,.1,mat(C.navy,{roughness:.5}),V(0,0,0),panel);
+const disp = canvasTex(1000,320);
+const dispMesh = new THREE.Mesh(new THREE.PlaneGeometry(4.8,1.45), new THREE.MeshBasicMaterial({map:disp.t, transparent:true}));
+dispMesh.position.z = .065; panel.add(dispMesh);
+const WIN = 300;  /* seconds of simulated time on the display */
+function drawDisplay(){
+  const {g, c} = disp; const W = c.width, H = c.height;
+  g.clearRect(0,0,W,H);
+  const L = 112, R = W-30, T = 62, B = H-34, ymin = 6.0, ymax = 8.2;
+  const y = p => B - (p-ymin)/(ymax-ymin)*(B-T);
+  g.font = "600 30px Outfit, Arial, sans-serif"; g.fillStyle = "rgba(238,240,232,.85)"; g.textBaseline = "middle";
+  g.fillText("Presión del depósito, bar(g)", L, 30);
+  g.textAlign = "right"; g.fillText("últimos 5 min", R, 30); g.textAlign = "left";
+  g.strokeStyle = "rgba(238,240,232,.45)"; g.setLineDash([12,10]); g.lineWidth = 4;
+  for(const p of [PLOW, PLOW+S.dp]){ g.beginPath(); g.moveTo(L,y(p)); g.lineTo(R,y(p)); g.stroke(); }
+  g.setLineDash([]);
+  g.fillStyle = "rgba(238,240,232,.85)"; g.font = "600 30px Outfit, Arial, sans-serif"; g.textAlign = "right";
+  g.fillText(fmt(PLOW+S.dp,1), L-14, y(PLOW+S.dp)); g.fillText(fmt(PLOW,1), L-14, y(PLOW)); g.textAlign = "left";
+  const h = sim.hist; if(h.length < 2) return;
+  const t1 = sim.t, x = t => R - (t1 - t)/WIN*(R-L);
+  g.lineWidth = 12; g.lineJoin = "round"; g.lineCap = "round";
+  for(let i=1;i<h.length;i++){
+    const a = h[i-1], b = h[i]; if(t1 - b.t > WIN) continue;
+    g.strokeStyle = b.load ? C.greenLt : "#C9D6E2";
+    g.beginPath(); g.moveTo(Math.max(L,x(a.t)), y(a.p)); g.lineTo(x(b.t), y(b.p)); g.stroke();
+  }
+  g.fillStyle = sim.load ? C.greenLt : "#C9D6E2"; g.beginPath(); g.arc(x(t1), y(sim.p), 14, 0, Math.PI*2); g.fill();
+  disp.t.needsUpdate = true;
+}
+
+/* ---------- pipes (rebuilt when sizes change) and airflow ---------- */
+const pipeM = mat(C.navy,{roughness:.45});
+let pipes = new THREE.Group(); scene.add(pipes);
+let pathIn = [], pathOut = [];
+function tankInletY(){ return (tank.y0 + tank.hc*.3)*tank.s; }
+function rebuild(){
+  comp.s = Math.cbrt(S.vc/10);
+  comp.g.scale.setScalar(comp.s);
+  comp.g.position.set(RX - comp.w/2*comp.s, 0, 0);
+  tank.s = Math.min(1.9, Math.cbrt(S.vs/1.5));
+  tank.g.scale.setScalar(tank.s);
+  scene.remove(pipes); pipes = new THREE.Group(); scene.add(pipes);
+  const yOut = 1.1*comp.s, yIn = tankInletY(), tl = TX - tank.r*tank.s, tr = TX + tank.r*tank.s;
+  pathIn = [V(RX,yOut,0), V(tl-.32,yOut,0), V(tl-.32,yIn,TZ), V(tl,yIn,TZ)];
+  const drop = V(tr+.35,.5,TZ);
+  const hoseC = new THREE.CatmullRomCurve3([drop, V(drop.x+.35,.18,.7), ps.hoseEnd.clone().add(V(.25,-.35,.25)), ps.hoseEnd]);
+  pathOut = [V(tr,yIn,TZ), V(tr+.35,yIn,TZ), drop].concat(hoseC.getPoints(16).slice(1));
+  pipe(pathIn,.07,pipeM,pipes); pipe([V(tr,yIn,TZ), V(tr+.35,yIn,TZ), drop],.06,pipeM,pipes);
+  add(new THREE.Mesh(new THREE.TubeGeometry(hoseC,40,.035,10,false), mat(C.navyDk)), pipes);
+}
+function polyLen(p){ let L = 0; for(let i=1;i<p.length;i++) L += p[i].distanceTo(p[i-1]); return L; }
+function at(p, u, out){ let L = polyLen(p)*u; for(let i=1;i<p.length;i++){ const d = p[i].distanceTo(p[i-1]); if(L <= d || i === p.length-1) return out.copy(p[i-1]).lerp(p[i], Math.min(1, L/d)); L -= d; } return out.copy(p[p.length-1]); }
+const NP = 70;
+const pm = new THREE.InstancedMesh(new THREE.SphereGeometry(.05,10,8), new THREE.MeshBasicMaterial({color:0xffffff}), NP);
+pm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); pm.frustumCulled = false; scene.add(pm);
+const parts = []; for(let i=0;i<NP;i++) parts.push({inlet: i < NP*.55, u: Math.random(), on: true});
+const cIn = col(C.greenLt), cOut = col("#5B9DF2"), tm = new THREE.Matrix4(), tv = new THREE.Vector3(), zero = new THREE.Matrix4().makeScale(0,0,0);
+for(let i=0;i<NP;i++) pm.setColorAt(i, parts[i].inlet ? cIn : cOut);
+
+/* ---------- camera ---------- */
+const cam = new THREE.OrthographicCamera(-1,1,1,-1,.1,200);
+const target = V(1.3,1.35,-.3), dir = V(1.0,.82,1.45).normalize();
+cam.position.copy(target).addScaledVector(dir, 40); cam.lookAt(target);
+const controls = new THREE.OrbitControls(cam, canvas);
+controls.target.copy(target); controls.enableDamping = true; controls.dampingFactor = .08;
+controls.maxPolarAngle = Math.PI*.47; controls.minZoom = .6; controls.maxZoom = 3; controls.enablePan = false;
+const VIEW_H = 9.6;  /* world units visible vertically */
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight; if(!w || !h) return;
+  renderer.setSize(w,h,false);
+  const a = w/h, hh = VIEW_H/2, hw = hh*a;
+  const ox = a > 1.3 ? -.6 : 0;   /* leave room for the control panel on wide screens */
+  Object.assign(cam, {left:-hw+ox, right:hw+ox, top:hh, bottom:-hh}); cam.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage); resize();
+
+/* ---------- labels ---------- */
+const LBL = {};
+function mk(id, cls){ const d = document.createElement("div"); d.className = "pill" + (cls ? " "+cls : ""); labelsEl.appendChild(d); LBL[id] = {el:d, anchor:V(0,0,0), lead:22}; return LBL[id]; }
+mk("comp"); mk("tank"); mk("ws","navy two"); mk("disp","navy"); mk("ship","navy two");
+LBL.disp.el.textContent = "Ciclos cortos de carga y vacío";
+LBL.ws.el.innerHTML = "Taller de hélices y timones<small>demanda: 3,5 m³/min (ilustrativa)</small>";
+LBL.ship.el.innerHTML = "Clientes de la planta<small>astilleros y armadores</small>";
+function updateLabels(){
+  const ratio = S.vc/DEMAND;
+  LBL.comp.el.textContent = ratio >= 2 ? "Compresor sobredimensionado" : "Compresor cercano a la demanda";
+  LBL.tank.el.textContent = S.vs <= 2 ? "Depósito pequeño" : S.vs >= 4 ? "Depósito amplio" : "Depósito mediano";
+  LBL.comp.anchor.set(RX - comp.w*.55*comp.s, (.18+comp.h)*comp.s + .05, .6*comp.s); LBL.comp.lead = 34;
+  LBL.tank.anchor.set(TX, (tank.y0+tank.hc+tank.r)*tank.s + .02, TZ); LBL.tank.lead = 46;
+  LBL.ws.anchor.set(WS.x+.3, 1.95, WS.z); LBL.ws.lead = 28;
+  LBL.tank.lead = 66;
+  LBL.ship.anchor.set(shipG.position.x, 1.5, shipG.position.z + SHIP_L*.32); LBL.ship.lead = 26;
+  LBL.disp.anchor.set(panel.position.x, panel.position.y+.9, panel.position.z); LBL.disp.lead = 0;
+}
+const pv = new THREE.Vector3();
+function placeLabels(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  for(const k in LBL){
+    const L = LBL[k]; pv.copy(L.anchor).project(cam);
+    const x = (pv.x*.5+.5)*w, y = (-pv.y*.5+.5)*h;
+    L.el.style.setProperty("--lead", L.lead + "px");
+    L.el.classList.toggle("nolead", L.lead === 0);
+    L.el.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) translate(-50%,calc(-100% - " + L.lead + "px))";
+  }
+}
+
+/* ---------- UI ---------- */
+function syncUI(){
+  const c = cyc();
+  $("k-n").textContent = fmt(c.n,0); $("k-idle").textContent = fmt(c.idle*100,0) + " %";
+  $("vc-o").textContent = fmt(S.vc,1) + " m³/min · FC " + fmt(c.fc*100,0) + " %";
+  $("vs-o").textContent = fmt(S.vs,1) + " m³"; $("dp-o").textContent = fmt(S.dp,1) + " bar";
+  $("vc").value = S.vc; $("vs").value = S.vs; $("dp").value = S.dp;
+  for(const k in PRESETS){ const P = PRESETS[k]; $("p-"+k).setAttribute("aria-pressed", String(P.vc===S.vc && P.vs===S.vs && Math.abs(P.dp-S.dp)<1e-9)); }
+  sim.p = Math.min(Math.max(sim.p, PLOW), PLOW+S.dp);
+  rebuild(); updateLabels();
+}
+for(const k of ["vc","vs","dp"]) $(k).addEventListener("input", e => { S[k] = parseFloat(e.target.value); syncUI(); });
+for(const k in PRESETS) $("p-"+k).addEventListener("click", () => { Object.assign(S, PRESETS[k]); syncUI(); });
+$("t-labels").addEventListener("click", () => { const on = $("t-labels").getAttribute("aria-pressed") !== "true"; $("t-labels").setAttribute("aria-pressed", String(on)); stage.classList.toggle("nolabels", !on); });
+$("t-full").addEventListener("click", () => { try{ document.fullscreenElement ? document.exitFullscreen().catch(()=>{}) : stage.requestFullscreen && stage.requestFullscreen().catch(()=>{}); }catch(e){} });
+document.addEventListener("keydown", e => {
+  if(/INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  const keys = Object.keys(PRESETS), cur = keys.findIndex(k => $("p-"+k).getAttribute("aria-pressed") === "true");
+  if(e.key === "ArrowRight" || e.key === "PageDown"){ e.preventDefault(); Object.assign(S, PRESETS[keys[(cur+1+keys.length)%keys.length]]); syncUI(); }
+  if(e.key === "ArrowLeft" || e.key === "PageUp"){ e.preventDefault(); Object.assign(S, PRESETS[keys[(Math.max(cur,0)-1+keys.length)%keys.length]]); syncUI(); }
+  if(e.key === "f" || e.key === "F") $("t-full").click();
+});
+
+/* ---------- pressure state machine ---------- */
+function stepSim(sdt, c){
+  if(sim.load){ sim.p += S.dp/c.tL*sdt; if(sim.p >= PLOW+S.dp){ sim.p = PLOW+S.dp; sim.load = false; } }
+  else { sim.p -= S.dp/c.tI*sdt; if(sim.p <= PLOW){ sim.p = PLOW; sim.load = true; } }
+  sim.t += sdt; sim.hist.push({t:sim.t, p:sim.p, load:sim.load});
+  while(sim.hist.length && sim.t - sim.hist[0].t > WIN + 20) sim.hist.shift();
+}
+/* fill the display with the last 5 minutes so the trace is complete from the first frame */
+function prefill(){ sim.p = PLOW; sim.load = true; sim.t = 0; sim.hist = []; const c = cyc(); for(let i=0;i<WIN*4;i++) stepSim(.25, c); }
+
+/* ---------- loop ---------- */
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let last = performance.now(), lastState = null, dispT = 0;
+function frame(now){
+  const dt = Math.min(.05,(now-last)/1000); last = now;
+  const c = cyc(), sdt = dt*(reduce ? SPEED/3 : SPEED);
+  stepSim(sdt, c);
+  if(lastState !== sim.load){ lastState = sim.load; $("state").classList.toggle("idle", !sim.load); $("state-t").textContent = sim.load ? "Carga: produce aire" : "Vacío: gira sin producir aire"; }
+  dispT += dt; if(dispT > 1/30){ dispT = 0; drawDisplay(); drawScreen(); }
+  /* compressor motion: the motor always turns; it shakes and pushes air only while loaded */
+  comp.blades.rotation.x += (sim.load ? 16 : 10)*dt;
+  comp.body.position.x = sim.load && !reduce ? Math.sin(now*.09)*.006 : 0;
+  tank.needle.rotation.z = -((sim.p - 6)/2.2*1.5*Math.PI - .75*Math.PI);
+  stepSparks(dt, ps.contact, true);
+  /* air particles */
+  for(let i=0;i<NP;i++){
+    const P = parts[i];
+    if(P.inlet){
+      if(sim.load){ P.u += dt*.55; if(P.u > 1) P.u -= 1; at(pathIn, P.u, tv); tm.makeTranslation(tv.x,tv.y,tv.z); pm.setMatrixAt(i, tm); }
+      else pm.setMatrixAt(i, zero);
+    } else { P.u += dt*.32; if(P.u > 1) P.u -= 1; at(pathOut, P.u, tv); tm.makeTranslation(tv.x,tv.y,tv.z); pm.setMatrixAt(i, tm); }
+  }
+  pm.instanceMatrix.needsUpdate = true; if(pm.instanceColor) pm.instanceColor.needsUpdate = true;
+  controls.update(); renderer.render(scene, cam); placeLabels();
+  requestAnimationFrame(frame);
+}
+document.fonts && document.fonts.ready.then(()=>{ drawDisplay(); drawScreen(); });
+syncUI(); prefill(); drawDisplay(); drawScreen(); requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>

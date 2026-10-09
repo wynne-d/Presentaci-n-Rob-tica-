@@ -1,0 +1,402 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Solución del caso en 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Outfit:wght@400;500;600&display=swap">
+<style>
+/* Layout: a slide-like screen. Title like the deck's with an Antes/Después switch, a 3D stage with deck-style pills,
+   result readouts top-right; source line at the foot. Single look on purpose: it copies the deck. */
+:root{
+  color-scheme:light;
+  --page:#D1D4C9; --ink:#141414; --navy:#29435C; --navy-2:#223A51; --green:#556E53; --green-lt:#9CC197;
+  --cream:#EEF0E8; --muted:#AEBBC7; --slate:#7D93A8; --soft:#4A5A52;
+  --f-head:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Outfit","Avenir Next","Segoe UI",system-ui,sans-serif;
+}
+html,body{height:100%}
+body{box-sizing:border-box;margin:0;background:var(--page);color:var(--ink);font-family:var(--f-body);
+  display:grid;grid-template-rows:auto minmax(420px,1fr) auto;gap:8px;padding-block:14px;padding-inline:16px;min-height:100%}
+*,*::before,*::after{box-sizing:border-box}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 20px}
+.eyebrow{font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--green)}
+h1{font-family:var(--f-head);font-weight:600;letter-spacing:-.03em;font-size:clamp(26px,3.6vw,46px);line-height:1;margin:4px 0 0;text-wrap:balance}
+.tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.seg{display:inline-flex;background:var(--navy);border-radius:999px;padding:4px}
+.seg button{font:600 14px var(--f-body);color:var(--cream);background:none;border:0;border-radius:999px;padding:8px 18px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--green-lt);color:var(--navy)}
+.btn{font:500 13px var(--f-body);color:var(--cream);background:var(--green);border:0;border-radius:999px;padding:8px 14px;cursor:pointer}
+.btn[aria-pressed="false"]{background:var(--soft)}
+button:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+
+.stage{position:relative;min-height:0;border-radius:22px;overflow:hidden}
+.stage:fullscreen{background:var(--page);border-radius:0}
+#c{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#c:active{cursor:grabbing}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.pill{position:absolute;left:0;top:0;white-space:nowrap;font:600 clamp(12px,1.25vw,16px)/1.25 var(--f-body);color:var(--cream);
+  background:var(--green);border-radius:999px;padding:8px 16px;transition:opacity .3s}
+.pill.navy{background:var(--navy)}
+.pill small{display:block;font-weight:500;opacity:.85;font-size:.9em}
+.pill.two{border-radius:20px}
+.pill::after{content:"";position:absolute;left:50%;top:100%;width:1.5px;height:var(--lead,22px);background:var(--navy)}
+.pill::before{content:"";position:absolute;left:calc(50% - 4px);top:calc(100% + var(--lead,22px) - 4px);width:8px;height:8px;border-radius:50%;background:var(--navy)}
+.pct{position:absolute;left:0;top:0;font:700 clamp(40px,6vw,88px)/1 var(--f-head);letter-spacing:-.04em;color:var(--green);transition:opacity .3s;white-space:nowrap}
+.gone{opacity:0}
+.pill.nolead::after,.pill.nolead::before{display:none}
+.nolabels .pill,.nolabels .pct{display:none}
+
+.readout{position:absolute;top:12px;right:12px;display:grid;grid-template-columns:auto auto;gap:8px;max-width:calc(100% - 24px)}
+.kpi{background:var(--navy);color:var(--cream);border-radius:18px;padding:10px 16px;min-width:9em}
+.kpi .v{display:block;font-family:var(--f-head);font-weight:700;font-size:clamp(24px,2.8vw,38px);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kpi .u{display:block;margin-top:3px;font-size:13px;color:var(--muted)}
+.kpi.hot .v{color:var(--green-lt)}
+.line{grid-column:1 / -1;justify-self:end;font:500 13px var(--f-body);color:var(--cream);background:var(--navy-2);border-radius:999px;padding:6px 12px;text-align:right}
+.fallback{position:absolute;inset:0;display:grid;place-content:center;padding:24px;text-align:center;font-size:15px;color:var(--soft)}
+footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 18px;font-size:12px;color:var(--soft);line-height:1.4}
+@media (max-width:760px){ .readout{left:12px} .kpi{min-width:0} .pill{padding:5px 10px} .line{border-radius:14px} }
+</style>
+
+<header>
+  <div>
+    <div class="eyebrow">Caso de estudio · Solución y resultados</div>
+    <h1>Carga base + ajuste con VSD</h1>
+  </div>
+  <div class="tools">
+    <div class="seg" role="group" aria-label="Configuración">
+      <button type="button" id="m-antes" aria-pressed="false">Antes</button>
+      <button type="button" id="m-despues" aria-pressed="true">Después</button>
+    </div>
+    <button class="btn" id="t-labels" aria-pressed="true">Etiquetas</button>
+    <button class="btn" id="t-full">Pantalla completa</button>
+  </div>
+</header>
+
+<main class="stage" id="stage">
+  <canvas id="c" aria-label="Modelo 3D: configuración de compresores antes y después, y consumo anual"></canvas>
+  <div id="labels"></div>
+  <div class="readout" aria-live="polite">
+    <div class="kpi hot"><span class="v" id="k1v"></span><span class="u" id="k1u"></span></div>
+    <div class="kpi"><span class="v" id="k2v"></span><span class="u" id="k2u"></span></div>
+    <div class="line" id="line"></div>
+  </div>
+</main>
+
+<footer>
+  <span>Fuente: Uyan (2023). Consumo antes y después (≈101 600 y ≈27 400 kWh/año): cálculo propio con datos de Uyan (2023). Resultados proyectados por el estudio, no medidos tras la instalación. Ambientación ilustrativa de una planta de equipo naval; no reproduce la planta real.</span>
+  <span>← → o el control remoto cambian Antes / Después · arrastre para girar</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/RoundedBoxGeometry.js"></script>
+<script>
+(function(){
+"use strict";
+const $ = id => document.getElementById(id);
+const stage = $("stage"), canvas = $("c"), labelsEl = $("labels");
+function fail(msg){ const d = document.createElement("div"); d.className = "fallback"; d.textContent = msg; stage.appendChild(d); }
+if(!window.THREE || !THREE.OrbitControls || !THREE.RoundedBoxGeometry){ fail("No se pudo cargar el motor 3D. Revisen la conexión y recarguen la página."); return; }
+
+const TEXT = {
+  antes:{k1v:"≈101 600", k1u:"kWh/año de consumo", k2v:"Ciclos cortos", k2u:"carga y vacío sin parar", line:"Un tornillo sobredimensionado con un depósito pequeño"},
+  despues:{k1v:"−73 %", k1u:"de energía (proyectado)", k2v:"74 160", k2u:"kWh/año ahorrados", line:"€9 374/año · ≈49,9 t CO₂/año · inversión €24 280 · retorno 2,2 años"}
+};
+let mode = "despues", k = 1;   /* k: 0 = antes, 1 = después (animated) */
+
+let renderer;
+try{ renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true}); }
+catch(e){ fail("Este navegador no pudo iniciar WebGL. Prueben con Chrome, Edge o Firefox actualizados."); return; }
+renderer.setPixelRatio(Math.min(devicePixelRatio||1, 2)); renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene();
+const C = { navy:"#29435C", navyDk:"#1F3447", green:"#556E53", greenDk:"#465C45", greenLt:"#9CC197", greenLtDk:"#86AD81", cream:"#EEF0E8",
+            slate:"#7D93A8", slateDk:"#62788D", steel:"#B9C2C9", table:"#C8B69B" };
+const col = h => new THREE.Color(h).convertSRGBToLinear();
+const mat = (h,o) => new THREE.MeshStandardMaterial(Object.assign({color:col(h), roughness:.62, metalness:.08}, o||{}));
+const V = (x,y,z) => new THREE.Vector3(x,y,z);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xbfc5b8, 1.05));
+const key = new THREE.DirectionalLight(0xffffff, 1.35); key.position.set(-6,14,9); key.castShadow = true;
+key.shadow.mapSize.set(2048,2048); Object.assign(key.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:50}); key.shadow.bias = -.0004; scene.add(key);
+const rim = new THREE.DirectionalLight(0xffffff,.35); rim.position.set(8,6,-6); scene.add(rim);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({opacity:.16})); ground.rotation.x = -Math.PI/2; ground.position.y = -.45; ground.receiveShadow = true; scene.add(ground);
+
+function add(m, parent){ m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; }
+function rbox(w,h,d,r,m,pos,parent){ const me = add(new THREE.Mesh(new THREE.RoundedBoxGeometry(w,h,d,4,r), m), parent); me.position.copy(pos); return me; }
+function cyl(r,h,m,pos,parent,seg){ const me = add(new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,seg||40), m), parent); me.position.copy(pos); return me; }
+function seg(a,b,r,m,parent){ const d = new THREE.Vector3().subVectors(b,a), len = d.length();
+  const me = add(new THREE.Mesh(new THREE.CylinderGeometry(r,r,len,24), m), parent); me.position.copy(a).addScaledVector(d,.5); me.quaternion.setFromUnitVectors(V(0,1,0), d.normalize()); return me; }
+function pipe(pts, r, m, parent){ for(let i=0;i<pts.length-1;i++) seg(pts[i],pts[i+1],r,m,parent);
+  for(let i=1;i<pts.length-1;i++){ const s = add(new THREE.Mesh(new THREE.SphereGeometry(r*1.15,24,16), m), parent); s.position.copy(pts[i]); } }
+function canvasTex(w,h){ const c = document.createElement("canvas"); c.width = w; c.height = h; const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return {c, g:c.getContext("2d"), t}; }
+/* ---------- naval-plant context: quay slab, harbour water, moored ship, propeller workshop, rudder ---------- */
+const CX = { slab:"#BFC4B8", slabEdge:"#AEB4A6", line:"#EEF0E8", water:"#8FA7B6", bronze:"#B8894F", bronzeDk:"#8E6638", rudder:"#C9C2B3", hull:"#29435C", deck:"#EEF0E8", spark:"#F2A541" };
+function slab(x0,x1,z0,z1){
+  const g = new THREE.Group(); scene.add(g);
+  const w = x1-x0, d = z1-z0;
+  const s = rbox(w,.26,d,.06,mat(CX.slab,{roughness:.95}),V((x0+x1)/2,-.13,(z0+z1)/2),g); s.castShadow = false;
+  const lm = mat(CX.line,{roughness:.9});
+  for(const z of [z1-.22]){ const l = rbox(w-.5,.012,.05,.005,lm,V((x0+x1)/2,.006,z),g); l.castShadow = false; }
+  /* quay edge bollards */
+  for(let z = z0+.5; z < z1-.3; z += 1.6){ cyl(.09,.22,mat(CX.hull),V(x1-.2,.11,z),g,20); cyl(.13,.05,mat(CX.hull),V(x1-.2,.24,z),g,20); }
+  return g;
+}
+function harbour(x0,x1,z0,z1){
+  const w = new THREE.Mesh(new THREE.PlaneGeometry(x1-x0, z1-z0), mat(CX.water,{roughness:.25, metalness:.1, transparent:true, opacity:.8}));
+  w.rotation.x = -Math.PI/2; w.position.set((x0+x1)/2,-.3,(z0+z1)/2); w.receiveShadow = true; scene.add(w);
+}
+function ship(pos, L, rotY){
+  const g = new THREE.Group(); g.position.copy(pos); g.rotation.y = rotY || 0; scene.add(g);
+  const H = L*.13, B = L*.17;
+  const s = new THREE.Shape();
+  s.moveTo(-L/2, H*.15); s.lineTo(L/2-L*.12, H*.0); s.quadraticCurveTo(L/2+L*.02, H*.3, L/2+L*.04, H*1.15);
+  s.lineTo(-L/2-L*.02, H*1.1); s.lineTo(-L/2, H*.15);
+  const hull = add(new THREE.Mesh(new THREE.ExtrudeGeometry(s,{depth:B, bevelEnabled:true, bevelSize:.05, bevelThickness:.05, bevelSegments:2}), mat(CX.hull,{roughness:.55})), g);
+  hull.position.set(0,-.35,-B/2);
+  rbox(L*.98,.06,B*.96,.02,mat(C.greenLt),V(0,-.35+H*.42,0),g);
+  rbox(L*1.0,.06,B*1.0,.02,mat(CX.deck),V(0,-.35+H*1.12,0),g);
+  rbox(L*.2,H*.75,B*.8,.05,mat(CX.deck),V(-L*.32,-.35+H*1.5,0),g);
+  rbox(L*.14,H*.35,B*.74,.04,mat(CX.deck),V(-L*.32,-.35+H*2.05,0),g);
+  rbox(L*.13,.05,B*.86,.02,mat(CX.hull),V(-L*.32,-.35+H*2.25,0),g);
+  cyl(H*.18,H*.7,mat(C.green),V(-L*.45,-.35+H*1.75,0),g,24);
+  /* deck cargo: two crates and a crane post */
+  rbox(L*.12,H*.4,B*.5,.03,mat(C.slate),V(L*.05,-.35+H*1.33,0),g);
+  rbox(L*.12,H*.4,B*.5,.03,mat(C.greenLt),V(L*.2,-.35+H*1.33,0),g);
+  cyl(.05,H*1.2,mat(C.navyDk||CX.hull),V(L*.34,-.35+H*1.7,0),g,12);
+  return g;
+}
+function rudder(pos){
+  const g = new THREE.Group(); g.position.copy(pos); scene.add(g);
+  rbox(1.0,.12,.6,.03,mat(C.table||"#C8B69B",{roughness:.85}),V(0,.06,0),g);
+  rbox(.78,1.55,.2,.09,mat(CX.rudder,{roughness:.5, metalness:.25}),V(0,.12+.8,0),g);
+  cyl(.06,.5,mat(C.steel||"#B9C2C9",{metalness:.7, roughness:.25}),V(-.12,.12+1.55+.2,0),g,16);
+  return g;
+}
+/* a cast propeller on a cradle; returns the grinder contact point and the hose inlet */
+function propellerStation(pos, R){
+  const g = new THREE.Group(); g.position.copy(pos); scene.add(g);
+  const cy = R + .32, nav = mat(C.navy);
+  for(const dz of [-.22,.22]){
+    seg(V(-.42,0,dz), V(0,cy-.05,dz), .045, nav, g); seg(V(.42,0,dz), V(0,cy-.05,dz), .045, nav, g);
+  }
+  seg(V(0,cy,-.42), V(0,cy,.42), .045, mat(C.steel||"#B9C2C9",{metalness:.7, roughness:.25}), g);
+  const prop = new THREE.Group(); prop.position.set(0,cy,0); g.add(prop);
+  const br = mat(CX.bronze,{metalness:.65, roughness:.32});
+  const hub = add(new THREE.Mesh(new THREE.CylinderGeometry(R*.17,R*.2,R*.36,32), br), prop); hub.rotation.x = Math.PI/2;
+  const cap = add(new THREE.Mesh(new THREE.SphereGeometry(R*.17,24,16,0,Math.PI*2,0,Math.PI/2), br), prop); cap.rotation.x = Math.PI/2; cap.position.z = R*.18;
+  for(let i=0;i<4;i++){
+    const pivot = new THREE.Group(); pivot.rotation.z = i*Math.PI/2 + .35; prop.add(pivot);
+    const blade = add(new THREE.Mesh(new THREE.SphereGeometry(1,40,18), br), pivot);
+    blade.scale.set(R*.46, R*.24, .035); blade.position.set(R*.56,0,0); blade.rotation.x = .55;
+  }
+  /* pneumatic grinder working on the lower-right blade */
+  const a = -Math.PI/4 + .35, tip = V(Math.cos(a)*R*.86, cy + Math.sin(a)*R*.86, .18);
+  const tool = new THREE.Group(); tool.position.copy(tip).add(V(.12,-.05,.16)); g.add(tool);
+  rbox(.34,.11,.11,.03,mat(C.slate,{metalness:.3}),V(.15,0,0),tool);
+  cyl(.075,.025,mat(C.navyDk||CX.hull),V(-.04,0,0),tool,24).rotation.z = Math.PI/2;
+  tool.rotation.z = .5;
+  return {g, contact:tip.clone().add(pos), hoseEnd:tool.position.clone().add(pos).add(V(.3,.08,0))};
+}
+/* sparks where the grinder touches the bronze */
+function sparks(n){
+  const m = new THREE.InstancedMesh(new THREE.SphereGeometry(.018,6,5), new THREE.MeshBasicMaterial({color:col(CX.spark)}), n);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; scene.add(m);
+  const it = []; for(let i=0;i<n;i++) it.push({life:0, max:1, p:V(0,0,0), v:V(0,0,0)});
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), Sc = new THREE.Vector3();
+  return function step(dt, origin, on){
+    for(let i=0;i<n;i++){
+      const s = it[i];
+      if(s.life <= 0){ s.max = s.life = .25 + Math.random()*.35; s.p.copy(origin); s.v.set(.6+Math.random()*1.4, Math.random()*1.6-.2, Math.random()*1.2-.2); }
+      s.life -= dt; s.v.y -= 6*dt; s.p.addScaledVector(s.v, dt);
+      const k = on ? Math.max(0, s.life/s.max) : 0; Sc.setScalar(k); M.compose(s.p, Q, Sc); m.setMatrixAt(i, M);
+    }
+    m.instanceMatrix.needsUpdate = true;
+  };
+}
+
+
+function compressor(o){
+  const g = new THREE.Group(); g.position.copy(o.pos); scene.add(g);
+  const {w,h,d} = o, base = mat(o.base);
+  rbox(w+.12,.18,d+.12,.05,base,V(0,.09,0),g);
+  rbox(w,h,d,.1,mat(o.body),V(0,.18+h/2,0),g);
+  const n = Math.max(4, Math.round(h*3));
+  for(let i=0;i<n;i++) rbox(w*.42,.045,.03,.015,base,V(w*.18,.42+i*(h-.55)/n,d/2+.01),g);
+  rbox(w*.32,h*.25,.07,.03,mat(C.navyDk),V(-w*.26,.18+h*.74,d/2+.02),g);
+  const scr = canvasTex(256,128);
+  const sm = new THREE.Mesh(new THREE.PlaneGeometry(w*.27,w*.135), new THREE.MeshBasicMaterial({map:scr.t})); sm.position.set(-w*.26,.18+h*.74,d/2+.06); g.add(sm);
+  if(o.vsd){ const t = canvasTex(256,96); t.g.fillStyle = C.cream; t.g.beginPath(); t.g.roundRect(0,0,256,96,18); t.g.fill();
+    t.g.fillStyle = C.navy; t.g.font = "700 64px Archivo, Arial, sans-serif"; t.g.textBaseline = "middle"; t.g.fillText("VSD", 62, 52); t.t.needsUpdate = true;
+    const tag = new THREE.Mesh(new THREE.PlaneGeometry(w*.3,w*.3*96/256), new THREE.MeshBasicMaterial({map:t.t, transparent:true})); tag.position.set(-w*.26,.18+h*.4,d/2+.02); g.add(tag); }
+  const fan = new THREE.Group(); fan.position.set(w/2+.012,.18+h*.5,0); g.add(fan);
+  const ring = add(new THREE.Mesh(new THREE.TorusGeometry(Math.min(h,d)*.3,.045,12,48), base), fan); ring.rotation.y = Math.PI/2;
+  const blades = new THREE.Group(); fan.add(blades);
+  for(let i=0;i<4;i++){ const b = rbox(.02,Math.min(h,d)*.5,.09,.01,base,V(0,0,0),blades); b.rotation.x = i*Math.PI/4; }
+  rbox(w*.3,.08,d*.5,.03,base,V(w*.18,.18+h+.04,0),g);
+  return {g, blades, scr, w, h, d};
+}
+function screen(c, big, small, color){
+  const {g, c:cv} = c.scr; g.clearRect(0,0,cv.width,cv.height); g.fillStyle = "#13202B"; g.fillRect(0,0,cv.width,cv.height);
+  g.fillStyle = color; g.font = "600 46px Outfit, Arial, sans-serif"; g.textBaseline = "middle"; g.fillText(big, 18, 44);
+  g.fillStyle = "#7FD3FF"; g.font = "500 30px Outfit, Arial, sans-serif"; g.fillText(small, 18, 96); c.scr.t.needsUpdate = true;
+}
+
+/* ---------- objects ---------- */
+const old = compressor({pos:V(-2.95,0,0), w:3.3, h:2.4, d:2.1, body:C.slate, base:C.slateDk});
+const baseC = compressor({pos:V(-4.25,0,0), w:1.8, h:1.65, d:1.45, body:C.green, base:C.greenDk});
+const vsdC = compressor({pos:V(-2.1,0,0), w:1.8, h:1.65, d:1.45, body:C.greenLt, base:C.greenLtDk, vsd:true});
+const tank = (function(){
+  const g = new THREE.Group(); g.position.set(-.05,0,.1); scene.add(g);
+  const r = .42, hc = 1.05, y0 = .38, m = mat(C.cream,{roughness:.45, metalness:.15});
+  cyl(r,hc,m,V(0,y0+hc/2,0),g);
+  const top = add(new THREE.Mesh(new THREE.SphereGeometry(r,40,20,0,Math.PI*2,0,Math.PI/2), m), g); top.position.set(0,y0+hc,0);
+  const bot = add(new THREE.Mesh(new THREE.SphereGeometry(r,40,20,0,Math.PI*2,Math.PI/2,Math.PI/2), m), g); bot.position.set(0,y0,0);
+  for(let i=0;i<3;i++){ const a = i*2.094+.6; cyl(.035,y0,mat(C.navy),V(Math.cos(a)*r*.6,y0/2,Math.sin(a)*r*.6),g,12); }
+  const rimM = add(new THREE.Mesh(new THREE.CylinderGeometry(r*.34,r*.34,.04,32), mat(C.navy)), g); rimM.rotation.x = Math.PI/2; rimM.position.set(0,y0+hc*.72,r+.01);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(r*.28,32), new THREE.MeshBasicMaterial({color:col(C.cream)})); face.position.set(0,y0+hc*.72,r+.034); g.add(face);
+  return {g, r, hc, y0};
+})();
+const pipeM = mat(C.navy,{roughness:.45});
+const pipesOld = new THREE.Group(); scene.add(pipesOld);
+const pathOld = [V(-1.3,1.05,0), V(-.8,1.05,0), V(-.8,.75,.1), V(-.47,.75,.1)];
+pipe(pathOld,.07,pipeM,pipesOld);
+const pipesNew = new THREE.Group(); scene.add(pipesNew);
+const pathBase = [V(-4.25,1.0,-.73), V(-4.25,1.0,-1.05), V(-.05,1.0,-1.05), V(-.05,1.0,-.32)];
+const pathVsd  = [V(-2.1,1.0,-.73), V(-2.1,1.0,-1.05), V(-.05,1.0,-1.05), V(-.05,1.0,-.32)];
+pipe(pathBase,.065,pipeM,pipesNew); pipe([V(-2.1,1.0,-.73), V(-2.1,1.0,-1.05)],.065,pipeM,pipesNew);
+
+/* the naval plant around the compressor room */
+slab(-5.7, 6.4, -2.3, 2.1);
+harbour(6.42, 18, -10, 10);
+const SHIP_L = 6.2;
+const shipG = ship(V(8.55, 0, -.3), SHIP_L, Math.PI/2);
+const PSX = V(2.0, 0, .4);
+const ps = propellerStation(PSX, .62);
+rudder(V(1.2, 0, -1.55));
+const stepSparks = sparks(40);
+const drop = V(.72,.5,.1);
+const hoseC = new THREE.CatmullRomCurve3([drop, V(.95,.18,.75), ps.hoseEnd.clone().add(V(.2,-.3,.25)), ps.hoseEnd]);
+pipe([V(.36,.75,.1), V(.72,.75,.1), drop], .055, pipeM, scene);
+add(new THREE.Mesh(new THREE.TubeGeometry(hoseC,40,.032,10,false), mat(C.navyDk)), scene);
+const pathDemand = [V(.36,.75,.1), V(.72,.75,.1), drop].concat(hoseC.getPoints(16).slice(1));
+
+/* bars: before stays as reference, after grows when "Después" is on */
+const BX = 4.15, H0 = 3.6, H1 = H0*27400/101600;
+const bars = new THREE.Group(); bars.position.set(BX,0,0); scene.add(bars);
+rbox(1.05,H0,1.05,.08,mat(C.slate),V(0,H0/2,0),bars);
+const after = rbox(1.05,1,1.05,.08,mat(C.greenLt),V(1.55,.5,0),bars);
+rbox(2.9,.06,1.5,.03,mat(C.navy),V(.78,.03,0),bars);
+const arrow = new THREE.Group(); bars.add(arrow);
+const am = mat(C.green);
+const curve = new THREE.QuadraticBezierCurve3(V(.15,H0+.25,0), V(1.55,H0+.9,0), V(1.55,H1+.75,0));
+add(new THREE.Mesh(new THREE.TubeGeometry(curve,48,.06,12,false), am), arrow);
+const tip = add(new THREE.Mesh(new THREE.ConeGeometry(.17,.34,24), am), arrow); tip.position.set(1.55,H1+.55,0); tip.rotation.z = Math.PI;
+
+/* particles */
+const NP = 60;
+const pm = new THREE.InstancedMesh(new THREE.SphereGeometry(.05,10,8), new THREE.MeshBasicMaterial({color:0xffffff}), NP);
+pm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); pm.frustumCulled = false; scene.add(pm);
+const parts = []; for(let i=0;i<NP;i++){ parts.push({lane:i%4, u:Math.random()}); pm.setColorAt(i, col("#5B9DF2")); }
+function polyLen(p){ let L = 0; for(let i=1;i<p.length;i++) L += p[i].distanceTo(p[i-1]); return L; }
+function at(p,u,out){ let L = polyLen(p)*u; for(let i=1;i<p.length;i++){ const d = p[i].distanceTo(p[i-1]); if(L <= d || i === p.length-1) return out.copy(p[i-1]).lerp(p[i], Math.min(1,L/d)); L -= d; } return out.copy(p[p.length-1]); }
+const tm = new THREE.Matrix4(), tv = new THREE.Vector3(), zero = new THREE.Matrix4().makeScale(0,0,0);
+
+/* camera */
+const cam = new THREE.OrthographicCamera(-1,1,1,-1,.1,200);
+const target = V(1.6,1.35,-.3), dir = V(1.0,.82,1.45).normalize();
+cam.position.copy(target).addScaledVector(dir,40); cam.lookAt(target);
+const controls = new THREE.OrbitControls(cam, canvas);
+controls.target.copy(target); controls.enableDamping = true; controls.dampingFactor = .08;
+controls.maxPolarAngle = Math.PI*.47; controls.minZoom = .6; controls.maxZoom = 3; controls.enablePan = false;
+const VIEW_H = 9.4;
+function resize(){ const w = stage.clientWidth, h = stage.clientHeight; if(!w || !h) return; renderer.setSize(w,h,false);
+  const a = w/h, hh = VIEW_H/2, hw = Math.max(hh*a, 7.4); const hh2 = hw/a;
+  Object.assign(cam,{left:-hw, right:hw, top:Math.max(hh,hh2), bottom:-Math.max(hh,hh2)}); cam.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(stage); resize();
+
+/* labels */
+const LBL = [];
+function pill(html, cls, anchorFn, lead, showFn){ const d = document.createElement("div"); d.className = "pill " + (cls||""); d.innerHTML = html; labelsEl.appendChild(d); LBL.push({el:d, anchorFn, lead, showFn}); }
+pill("Tornillo sobredimensionado", "", () => V(-2.95, (.18+2.4)*sc(1-k)+.05, .5), 30, () => k < .5);
+pill("Carga base<small>velocidad fija · 100 %</small>", "two", () => V(-4.25, (.18+1.65)*sc(k)+.05, .3), 70, () => k > .5);
+pill("Ajuste con VSD", "", () => V(-2.1, (.18+1.65)*sc(k)+.05, .3), 30, () => k > .5);
+pill("Antes<small>≈101 600 kWh/año</small>", "navy two", () => V(BX-.2, H0+.05, .3), 26, () => true);
+pill("Después<small>≈27 400 kWh/año</small>", "navy two", () => V(BX+1.95, H1*k*.6, .53), 0, () => k > .5);
+pill("Taller de hélices y timones", "navy", () => V(PSX.x-.2, 1.62, PSX.z), 16, () => true);
+const pct = document.createElement("div"); pct.className = "pct"; pct.textContent = "−73 %"; labelsEl.appendChild(pct);
+const pv = new THREE.Vector3();
+function place(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  for(const L of LBL){
+    pv.copy(L.anchorFn()).project(cam); const x = (pv.x*.5+.5)*w, y = (-pv.y*.5+.5)*h;
+    L.el.classList.toggle("gone", !L.showFn());
+    L.el.style.setProperty("--lead", L.lead + "px"); L.el.classList.toggle("nolead", L.lead === 0);
+    if(L.lead === 0){ L.el.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) translate(4px,-50%)"; }
+    else L.el.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) translate(-50%,calc(-100% - " + L.lead + "px))";
+  }
+  pv.copy(V(BX+2.0, H1+1.2, 0)).project(cam);
+  pct.style.transform = "translate(" + ((pv.x*.5+.5)*w).toFixed(1) + "px," + ((-pv.y*.5+.5)*h).toFixed(1) + "px) translate(0,-50%)";
+  pct.classList.toggle("gone", k < .85);
+}
+
+/* mode switch */
+function setMode(m){
+  mode = m;
+  $("m-antes").setAttribute("aria-pressed", String(m === "antes")); $("m-despues").setAttribute("aria-pressed", String(m === "despues"));
+  const T = TEXT[m]; $("k1v").textContent = T.k1v; $("k1u").textContent = T.k1u; $("k2v").textContent = T.k2v; $("k2u").textContent = T.k2u; $("line").textContent = T.line;
+}
+$("m-antes").addEventListener("click", () => setMode("antes"));
+$("m-despues").addEventListener("click", () => setMode("despues"));
+$("t-labels").addEventListener("click", () => { const on = $("t-labels").getAttribute("aria-pressed") !== "true"; $("t-labels").setAttribute("aria-pressed", String(on)); stage.classList.toggle("nolabels", !on); });
+$("t-full").addEventListener("click", () => { try{ document.fullscreenElement ? document.exitFullscreen().catch(()=>{}) : stage.requestFullscreen && stage.requestFullscreen().catch(()=>{}); }catch(e){} });
+document.addEventListener("keydown", e => {
+  if(e.key === "ArrowRight" || e.key === "PageDown"){ e.preventDefault(); setMode("despues"); }
+  else if(e.key === "ArrowLeft" || e.key === "PageUp"){ e.preventDefault(); setMode("antes"); }
+  else if(e.key === " " && e.target.tagName !== "BUTTON"){ e.preventDefault(); setMode(mode === "antes" ? "despues" : "antes"); }
+  else if(e.key === "f" || e.key === "F") $("t-full").click();
+});
+
+/* loop */
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sc = x => Math.max(.0001, x*x*(3-2*x));
+let last = performance.now(), scrT = 0, oldLoad = true, cycT = 0;
+function frame(now){
+  const dt = Math.min(.05,(now-last)/1000); last = now; const t = now/1000;
+  const goal = mode === "despues" ? 1 : 0;
+  k = reduce ? goal : k + Math.sign(goal - k)*Math.min(Math.abs(goal - k), dt/0.9);
+  const sOld = sc(1-k), sNew = sc(k);
+  old.g.scale.setScalar(sOld); old.g.visible = sOld > .01; pipesOld.visible = k < .5;
+  baseC.g.scale.setScalar(sNew); vsdC.g.scale.setScalar(sNew); baseC.g.visible = vsdC.g.visible = sNew > .01; pipesNew.visible = k >= .5;
+  after.scale.y = Math.max(.001, H1*sNew); after.position.y = after.scale.y/2;
+  arrow.scale.setScalar(Math.max(.0001, sc(Math.max(0,(k-.6)/.4))));
+  /* the old machine short-cycles: ~1.2 s loaded, ~2 s unloaded */
+  cycT += dt; if(cycT > (oldLoad ? 1.2 : 2.0)){ cycT = 0; oldLoad = !oldLoad; }
+  const vsdSpeed = .45 + .22*Math.sin(t*.7) + .08*Math.sin(t*1.9);
+  old.blades.rotation.x += (oldLoad ? 16 : 10)*dt; baseC.blades.rotation.x += 16*dt; vsdC.blades.rotation.x += 30*vsdSpeed*dt;
+  scrT += dt; if(scrT > .25){ scrT = 0;
+    screen(old, oldLoad ? "CARGA" : "VACÍO", "ciclos cortos", oldLoad ? C.greenLt : C.slate);
+    screen(baseC, "100 %", "carga base", C.greenLt);
+    screen(vsdC, Math.round(vsdSpeed*100) + " %", "sigue la demanda", C.greenLt);
+  }
+  for(let i=0;i<NP;i++){
+    const P = parts[i];
+    if(P.lane === 3){ P.u += dt*.3; if(P.u > 1) P.u -= 1; at(pathDemand, P.u, tv); tm.makeTranslation(tv.x,tv.y,tv.z); pm.setMatrixAt(i, tm); continue; }
+    if(k < .5){
+      if(P.lane === 0 || !oldLoad){ pm.setMatrixAt(i, zero); continue; }
+      P.u += dt*.6; if(P.u > 1) P.u -= 1; at(pathOld, P.u, tv);
+    } else {
+      const path = P.lane === 0 ? pathVsd : pathBase, sp = P.lane === 0 ? .25 + .5*vsdSpeed : .45;
+      P.u += dt*sp*.5; if(P.u > 1) P.u -= 1; at(path, P.u, tv);
+    }
+    tm.makeTranslation(tv.x,tv.y,tv.z); pm.setMatrixAt(i, tm);
+  }
+  pm.instanceMatrix.needsUpdate = true; if(pm.instanceColor) pm.instanceColor.needsUpdate = true;
+  stepSparks(dt, ps.contact, true);
+  controls.update(); renderer.render(scene, cam); place();
+  requestAnimationFrame(frame);
+}
+setMode("despues");
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
